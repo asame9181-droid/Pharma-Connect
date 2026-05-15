@@ -54,6 +54,9 @@ services:
       - backend
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      # Forwarded by .devcontainer when running in GitHub Codespaces; flips
+      # Vite into Codespace-friendly mode (HMR over wss:443).
+      CODESPACES: ${CODESPACES:-}
     ports:
       - "5173:5173"
     volumes:
