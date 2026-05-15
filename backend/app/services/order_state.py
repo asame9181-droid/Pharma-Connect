@@ -56,15 +56,18 @@ def transition(
 
     Caller is responsible for committing the session.
     """
-    if not can_transition(order.status, new_status):
+    # SQLAlchemy loads the column as a plain string; coerce so the FSM can
+    # work in enum-space regardless of how the order was constructed.
+    current = order.status if isinstance(order.status, OrderStatus) else OrderStatus(order.status)
+    if not can_transition(current, new_status):
         raise InvalidTransition(
-            f"Cannot move order {order.id} from {order.status.value} to {new_status.value}"
+            f"Cannot move order {order.id} from {current.value} to {new_status.value}"
         )
 
     event = OrderEvent(
         order_id=order.id,
         actor_user_id=actor_user_id,
-        from_status=order.status.value,
+        from_status=current.value,
         to_status=new_status.value,
         note=note,
     )
