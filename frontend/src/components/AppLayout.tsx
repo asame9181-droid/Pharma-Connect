@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/auth/AuthContext";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -8,7 +8,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 // a sticky top bar with the brand and a logout button. Responsive without
 // fighting Tailwind: visibility flips on the `md:` breakpoint.
 export default function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const nav = useNavigate();
   const { t } = useTranslation();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -16,7 +16,12 @@ export default function AppLayout() {
   // Subscribe to SSE only when the user is logged in.
   useNotifications(Boolean(user));
 
-  if (!user) return null;
+  // While the AuthContext is verifying the stored token, show a spinner
+  // rather than a blank screen.
+  if (loading) return <div className="p-8 text-slate-500">Loading…</div>;
+  // Unauthenticated users hitting any layout-wrapped route get sent to login.
+  // (Previously this returned null, which rendered a white screen.)
+  if (!user) return <Navigate to="/login" replace />;
 
   const linksForRole = (() => {
     if (user.role === "PHARMACY") {
