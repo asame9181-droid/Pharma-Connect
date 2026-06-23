@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     smtp_from: str = Field(default="no-reply@pharma-connect.local", alias="SMTP_FROM")
     smtp_tls: bool = Field(default=True, alias="SMTP_TLS")
 
-    # --- Claude API (optional; chatbot disabled when missing) ---
-    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
-    claude_model: str = Field(default="claude-haiku-4-5", alias="CLAUDE_MODEL")
+    # --- Groq API (optional; chatbot disabled when missing) ---
+    groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
+    groq_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_MODEL")
     chatbot_daily_request_limit: int = Field(default=50, alias="CHATBOT_DAILY_REQUEST_LIMIT")
 
     @property
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     @property
     def chatbot_enabled(self) -> bool:
-        return bool(self.anthropic_api_key)
+        return bool(self.groq_api_key)
 
 
 @lru_cache
