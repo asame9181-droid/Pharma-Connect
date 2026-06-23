@@ -1,15 +1,15 @@
-"""Grounded RAG chatbot orchestrator (Upgrade #7).
+"""Grounded RAG chatbot orchestrator (Groq Edition).
 
 Flow on every user question:
   1. Persist the user's message.
   2. Retrieve top-K relevant medications from our DB (services.retrieval).
-  3. Build a strict system prompt instructing Claude to ONLY use the provided
+  3. Build a strict system prompt instructing Groq to ONLY use the provided
      context, and to refuse if the context can't answer the question.
-  4. Send the prompt + a short rolling history of the chat to Claude.
+  4. Send the prompt + a short rolling history of the chat to Groq.
   5. Persist the assistant's reply with a citations field listing the
      medication IDs we retrieved.
 
-If the Anthropic API key isn't configured the endpoint disables itself with a
+If the Groq API key isn't configured the endpoint disables itself with a
 clear error rather than silently failing.
 """
 
@@ -17,7 +17,7 @@ import json
 import logging
 from datetime import date
 
-from anthropic import Anthropic
+from groq import Groq
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -28,7 +28,7 @@ from app.services.retrieval import retrieve, format_context
 
 log = logging.getLogger(__name__)
 
-# Hard limit on conversational history we send back to Claude per turn so
+# Hard limit on conversational history we send back to Groq per turn so
 # costs stay bounded and the model isn't distracted by ancient context.
 HISTORY_TURN_LIMIT = 6
 
@@ -53,7 +53,7 @@ provided to you in the CONTEXT block. You must follow these rules:
 
 
 class ChatbotDisabled(Exception):
-    """Raised when ANTHROPIC_API_KEY isn't configured."""
+    """Raised when GROQ_API_KEY isn't configured."""
 
 
 class ChatbotRateLimited(Exception):
@@ -90,7 +90,7 @@ def _get_or_create_session(db: Session, user: User, session_id: int | None) -> C
 
 
 def _build_history(session: ChatSession) -> list[dict]:
-    """Return the last few turns formatted as Claude API messages."""
+    """Return the last few turns formatted as Groq API messages."""
     # Walk the messages in chronological order, then take the trailing slice
     # so we keep the most recent context. Drop the assistant's most recent
     # message because we're about to generate a new one in its place.
@@ -104,13 +104,13 @@ def _build_history(session: ChatSession) -> list[dict]:
 def ask(db: Session, user: User, session_id: int | None, message: str) -> ChatMessage:
     """Run one chatbot turn end-to-end. Caller commits the session."""
     if not settings.chatbot_enabled:
-        raise ChatbotDisabled("Chatbot is not configured (ANTHROPIC_API_KEY missing).")
+        raise ChatbotDisabled("Chatbot is not configured (GROQ_API_KEY missing).")
 
     _check_quota(db, user)
 
     session = _get_or_create_session(db, user, session_id)
 
-    # Persist the user message FIRST so it's stored even if Claude fails.
+    # Persist the user message FIRST so it's stored even if Groq fails.
     user_msg = ChatMessage(session_id=session.id, role="user", content=message)
     db.add(user_msg)
     db.flush()
@@ -127,19 +127,17 @@ def ask(db: Session, user: User, session_id: int | None, message: str) -> ChatMe
         }
     )
 
-    client = Anthropic(api_key=settings.anthropic_api_key)
+    client = Groq(api_key=settings.groq_api_key)
     try:
-        response = client.messages.create(
-            model=settings.claude_model,
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",  # ✅ Model الجديد الشغّال
             max_tokens=400,
             system=SYSTEM_PROMPT,
             messages=history,
         )
-        reply_text = "".join(
-            block.text for block in response.content if getattr(block, "type", "") == "text"
-        ).strip()
+        reply_text = response.choices[0].message.content.strip()
     except Exception as exc:
-        log.exception("Claude API call failed")
+        log.exception("Groq API call failed")
         reply_text = (
             "Sorry, the assistant is temporarily unavailable. "
             f"({type(exc).__name__})"
